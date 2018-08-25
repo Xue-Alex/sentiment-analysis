@@ -1,4 +1,3 @@
-import os
 import string
 from random import shuffle
 from pymongo import MongoClient
@@ -39,6 +38,7 @@ class MultinomialNaiveBayes:
         self.testing_set = []
         self.neg_occ = {}
         self.pos_occ = {}
+        self.unique_words = {}
         self.training_set, self.testing_set = DbConnect().retrieve()
         self.num_bad = 0
         self.num_good = 0
@@ -59,12 +59,13 @@ class MultinomialNaiveBayes:
 
     def bag_of_words(self, query, rate):
         bag = self.tokenizer(query)
-        rate = self.clean_rate(rate)
         for word in bag:
             if word not in self.pos_occ:
                 self.pos_occ[word] = 0
+                self.unique_words[word] = 1
             if word not in self.neg_occ:
                 self.neg_occ[word] = 0
+                self.unique_words[word] = 1
             if rate == '1':
                 self.pos_occ[word] += 1
             if rate == '0':
@@ -73,7 +74,8 @@ class MultinomialNaiveBayes:
     def learn(self):
         for c in self.training_set:
             q = c.split('\t')
-            if q[1] == 0:
+            q[1] = self.clean_rate(q[1])
+            if q[1] == '0':
                 self.num_bad += 1
             else:
                 self.num_good += 1
@@ -86,9 +88,14 @@ class MultinomialNaiveBayes:
         prob_bad = 1.0
         for word in query:
             if word in self.pos_occ:
-                prob_good *= self.pos_occ[word] / self.pos_words
+                prob_good *= (self.pos_occ[word] + 1) / (self.pos_words + sum(self.unique_words.values()))
+            else:
+                prob_good *= 1 / (self.pos_words + sum(self.unique_words.values()))
             if word in self.neg_occ:
-                prob_bad *= self.neg_occ[word] / self.neg_words
+                prob_bad *= (self.neg_occ[word] + 1) / (self.neg_words + sum(self.unique_words.values()))
+            else:
+                prob_bad *= 1 / (self.neg_words + sum(self.unique_words.values()))
+
         return prob_good * (self.num_good / (self.num_good + self.num_bad)) > prob_bad * (
                 self.num_bad / (self.num_good + self.num_bad))
 
@@ -107,7 +114,6 @@ class MultinomialNaiveBayes:
                 correct += 1
             else:
                 errors.append(c)
-
         return correct / total
 
 
