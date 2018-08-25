@@ -3,12 +3,17 @@ just trying some stuff going to use naive bayes
 
 ## TODO
 
-Experiment with bernoulli model
+### low level
+  Experiment with bernoulli model
 
-Incorporate N-grams model
+  Incorporate N-grams model
 
-Laplace smoothing
+  Laplace smoothing
 
-Clean out stopwords in `tokenizer()`
+  Clean out stopwords in `tokenizer()`
+  
+### high level
 
+   data augmentation with synonym replacement
 
+   store datasets in db
