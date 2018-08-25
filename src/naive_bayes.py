@@ -1,9 +1,28 @@
 import string
+import click
+import os
 from random import shuffle
 from pymongo import MongoClient
+from sw import stops
 
 
-class DbConnect():
+def data_split(lines):
+    num_lines = len(lines)
+    line_count = 0
+    train_size = int(0.8 * num_lines)
+    training = []
+    testing = []
+    for line in lines:
+        if line_count <= train_size:
+            training.append(line)
+        else:
+            testing.append(line)
+        line_count += 1
+
+    return training, testing
+
+
+class DbConnect:
 
     def __init__(self):
         self._db_col = MongoClient().test_database.test_collection
@@ -13,52 +32,56 @@ class DbConnect():
         for document in self._db_col.find():
             self.queries.append(document['text'])
         shuffle(self.queries)
-        return self.data_split(self.queries)
+        return data_split(self.queries)
 
-    def data_split(self, lines):
-        num_lines = len(lines)
-        line_count = 0
-        train_size = int(0.8 * num_lines)
-        training = []
-        testing = []
-        for line in lines:
-            if line_count <= train_size:
-                training.append(line)
-            else:
-                testing.append(line)
-            line_count += 1
-        return training, testing
+
+def tokenizer(query):
+    punctuation = set(string.punctuation + '-')
+    for c in punctuation:
+        query = query.replace(c, '')
+    query = query.strip('\n').lower().split(' ')
+    query[:] = [x for x in query if x not in stops() and x != '']
+    return query
+
+
+def get_data():
+    cur_dir = os.path.abspath(os.path.dirname(__file__))
+    parent_dir = os.path.abspath(cur_dir + "/../")
+    resources_path = os.path.abspath(parent_dir + '/data/')
+    training_set = []
+    testing_set = []
+    for files in os.listdir(resources_path):
+        f = open(os.path.join(resources_path + f'\{files}'))
+        temp_train, temp_test = data_split(list(f))
+        training_set.extend(temp_train)
+        testing_set.extend(temp_test)
+    return training_set, testing_set
 
 
 class MultinomialNaiveBayes:
 
-    def __init__(self):
+    def __init__(self, db):
         self.datasets = []
         self.training_set = []
         self.testing_set = []
         self.neg_occ = {}
         self.pos_occ = {}
         self.unique_words = {}
-        self.training_set, self.testing_set = DbConnect().retrieve()
+        if db:
+            self.training_set, self.testing_set = DbConnect().retrieve()
+        else:
+            self.training_set, self.testing_set = get_data()
         self.num_bad = 0
         self.num_good = 0
         self.neg_words = 0
         self.pos_words = 0
-
-    def tokenizer(self, query):
-        punctuation = set(string.punctuation + '-')
-        for c in punctuation:
-            query = query.replace(c, '')
-        query = query.strip('\n')
-        query = query.lower()
-        return query.split(' ')
 
     def clean_rate(self, rate):
         rate = rate.strip('\n')
         return rate
 
     def bag_of_words(self, query, rate):
-        bag = self.tokenizer(query)
+        bag = tokenizer(query)
         for word in bag:
             if word not in self.pos_occ:
                 self.pos_occ[word] = 0
@@ -86,6 +109,7 @@ class MultinomialNaiveBayes:
     def predict(self, query):
         prob_good = 1.0
         prob_bad = 1.0
+        query = tokenizer(query)
         for word in query:
             if word in self.pos_occ:
                 prob_good *= (self.pos_occ[word] + 1) / (self.pos_words + sum(self.unique_words.values()))
@@ -106,7 +130,7 @@ class MultinomialNaiveBayes:
         for c in self.testing_set:
             total += 1
             q = c.split('\t')
-            prediction = self.predict(self.tokenizer(q[0]))
+            prediction = self.predict(q[0])
             rate = self.clean_rate(q[1])
             if prediction and rate == '1':
                 correct += 1
@@ -117,6 +141,14 @@ class MultinomialNaiveBayes:
         return correct / total
 
 
-temp = MultinomialNaiveBayes()
-temp.learn()
-print(temp.evaluate())
+@click.command()
+@click.option('--db/--no-db', default = True)
+def train(db):
+    temp = MultinomialNaiveBayes(db)
+    temp.learn()
+    print(temp.evaluate())
+
+
+if __name__ == '__main__':
+    train()
+
