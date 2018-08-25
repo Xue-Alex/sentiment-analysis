@@ -16,4 +16,3 @@ just trying some stuff going to use naive bayes
 
    data augmentation with synonym replacement
 
-   store datasets in db
