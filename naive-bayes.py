@@ -1,36 +1,45 @@
 import os
 import string
+from random import shuffle
+from pymongo import MongoClient
 
 
-def data_split(lines):
-    num_lines = sum(1 for _ in lines)
-    line_count = 0
-    train_size = int(0.8 * num_lines)
-    training = []
-    testing = []
-    lines.seek(0)
-    for line in lines:
-        if line_count <= train_size:
-            training.append(line)
-        else:
-            testing.append(line)
-        line_count += 1
-    return training, testing
+class DbConnect():
+
+    def __init__(self):
+        self._db_col = MongoClient().test_database.test_collection
+        self.queries = []
+
+    def retrieve(self):
+        for document in self._db_col.find():
+            self.queries.append(document['text'])
+        shuffle(self.queries)
+        return self.data_split(self.queries)
+
+    def data_split(self, lines):
+        num_lines = len(lines)
+        line_count = 0
+        train_size = int(0.8 * num_lines)
+        training = []
+        testing = []
+        for line in lines:
+            if line_count <= train_size:
+                training.append(line)
+            else:
+                testing.append(line)
+            line_count += 1
+        return training, testing
 
 
-class MultinomialNaiveBayes():
+class MultinomialNaiveBayes:
 
-    def __init__(self, resources_path):
+    def __init__(self):
         self.datasets = []
         self.training_set = []
         self.testing_set = []
         self.neg_occ = {}
         self.pos_occ = {}
-        for files in os.listdir(resources_path):
-            f = open(resources_path + files, 'r')
-            temp_train, temp_test = data_split(f)
-            self.training_set.extend(temp_train)
-            self.testing_set.extend(temp_test)
+        self.training_set, self.testing_set = DbConnect().retrieve()
         self.num_bad = 0
         self.num_good = 0
         self.neg_words = 0
@@ -102,7 +111,6 @@ class MultinomialNaiveBayes():
         return correct / total
 
 
-temp = MultinomialNaiveBayes('./data/')
+temp = MultinomialNaiveBayes()
 temp.learn()
 print(temp.evaluate())
-
