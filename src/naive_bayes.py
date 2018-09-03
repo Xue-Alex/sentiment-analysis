@@ -94,6 +94,21 @@ class MultinomialNaiveBayes:
             if rate == '0':
                 self.neg_occ[word] += 1
 
+    def n_grams(self, corp, rate, n = 3):
+        bag = ' '.join(tokenizer(corp))
+        for i in range(len(bag) - n + 1):
+            gram = ''.join(bag[i:i + n])
+            if gram not in self.pos_occ:
+                self.pos_occ[gram] = 0
+                self.unique_words[gram] = 1
+            if gram not in self.neg_occ:
+                self.neg_occ[gram] = 0
+                self.unique_words[gram] = 1
+            if rate == '1':
+                self.pos_occ[gram] += 1
+            if rate == '0':
+                self.neg_occ[gram] += 1
+
     def learn(self):
         for c in self.training_set:
             q = c.split('\t')
